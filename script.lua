@@ -475,11 +475,15 @@ local function renderDrawings(camera, screenSize, screenCenter, myRoot, drawings
         local screenPos = Vector2.new(sp.X, sp.Y)
 
         if not onScreen then
+            if data.shadows then for _, s in ipairs(data.shadows) do s.Visible = false end end
             for _, l in ipairs(data.corners) do l.Visible = false end
             data.line.Visible = false
+            if data.hpBarBg then data.hpBarBg.Visible = false end
+            if data.hpBarFill then data.hpBarFill.Visible = false end
             data.nameText.Visible = false
             data.hpText.Visible = false
             data.distText.Visible = false
+            if data.toolText then data.toolText.Visible = false end
             continue
         end
 
@@ -1600,6 +1604,156 @@ HitboxTab:Toggle({
                 end
             end
         end
+    end,
+})
+
+local EndlessSurvivalTab = ElementsSection:Tab({
+    Title  = "Endless Survival",
+    Icon   = "shield",
+    Locked = false,
+})
+
+local autoRepairEnabled = false
+local autoRepairThread = nil
+
+local repairPartCache = nil
+local repairPartCacheTime = 0
+
+local function getRepairParts()
+    local now = tick()
+    if repairPartCache and (now - repairPartCacheTime) < 10 then
+        return repairPartCache
+    end
+    local area = workspace:FindFirstChild("AREA51")
+    if not area then return {} end
+    local parts = {}
+    for _, desc in ipairs(area:GetDescendants()) do
+        if desc:IsA("BasePart") and desc.Name == "RepairPart" then
+            local prompt = desc:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                table.insert(parts, { part = desc, prompt = prompt })
+            end
+        end
+    end
+    repairPartCache = parts
+    repairPartCacheTime = now
+    return parts
+end
+
+local function getNearestRepairPart()
+    local char = Players.LocalPlayer.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local parts = getRepairParts()
+    local nearest = nil
+    local nearestDist = math.huge
+    for _, data in ipairs(parts) do
+        if data.part and data.part.Parent and data.prompt and data.prompt.Parent then
+            local dist = (root.Position - data.part.Position).Magnitude
+            if dist < nearestDist then
+                nearestDist = dist
+                nearest = data
+            end
+        end
+    end
+    return nearest
+end
+
+EndlessSurvivalTab:Button({
+    Title    = "Give All Perks",
+    Desc     = "gives every perks (FOR ENDLESS SURVIVAL)",
+    Locked   = false,
+    Callback = function()
+        local perksFolder = Players.LocalPlayer:WaitForChild("Perks", 5)
+        if not perksFolder then
+            WindUI:Notify({ Title = "Perks", Content = "Perks folder not found", Icon = "x" })
+            return
+        end
+        for _, perk in ipairs(perksFolder:GetChildren()) do
+            pcall(function()
+                perk.Value = true
+            end)
+        end
+        WindUI:Notify({ Title = "Perks", Content = "All perks given", Icon = "check" })
+    end,
+})
+
+EndlessSurvivalTab:Space()
+
+task.spawn(function()
+    local perksFolder = Players.LocalPlayer:WaitForChild("Perks", 10)
+    if not perksFolder then return end
+    for _, perk in ipairs(perksFolder:GetChildren()) do
+        local perkName = perk.Name
+        EndlessSurvivalTab:Button({
+            Title    = "Give " .. perkName,
+            Desc     = "Give " .. perkName .. " to you",
+            Locked   = false,
+            Callback = function()
+                pcall(function()
+                    perk.Value = true
+                end)
+                WindUI:Notify({ Title = "Perk", Content = perkName .. " given", Icon = "check" })
+            end,
+        })
+    end
+end)
+
+EndlessSurvivalTab:Space()
+
+EndlessSurvivalTab:Button({
+    Title    = "Kill All Killers",
+    Desc     = "Just client side",
+    Locked   = false,
+    Callback = function()
+        for _, model in ipairs(KillersFolder:GetChildren()) do
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.Health = 0
+            end
+        end
+    end,
+})
+
+EndlessSurvivalTab:Space()
+
+EndlessSurvivalTab:Toggle({
+    Flag     = "AutoRepairBarriers",
+    Title    = "Auto Repair Barriers",
+    Desc     = "Finds and triggers the nearest repair prompt",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        autoRepairEnabled = state
+        if autoRepairThread then
+            task.cancel(autoRepairThread)
+            autoRepairThread = nil
+        end
+        if not state then return end
+        autoRepairThread = task.spawn(function()
+            while autoRepairEnabled do
+                local nearest = getNearestRepairPart()
+                if nearest then
+                    local char = Players.LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local dist = (root.Position - nearest.part.Position).Magnitude
+                        if dist <= (nearest.prompt.MaxActivationDistance or 10) + 2 then
+                            pcall(fireproximityprompt, nearest.prompt)
+                        else
+                            local tween = TweenService:Create(root, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {
+                                CFrame = CFrame.new(nearest.part.Position + Vector3.new(0, 3, 0))
+                            })
+                            tween:Play()
+                            tween.Completed:Wait()
+                            pcall(fireproximityprompt, nearest.prompt)
+                        end
+                    end
+                end
+                task.wait(1)
+            end
+        end)
     end,
 })
 
