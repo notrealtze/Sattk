@@ -213,6 +213,276 @@ local playerDrawStyle = "2D"
 local playerBoxColor = Color3.fromRGB(50, 150, 255)
 local playerNameColor = Color3.fromRGB(80, 180, 255)
 
+local mysteryBoxESPEnabled = false
+local mysteryBoxBillboards = {}
+local mysteryBoxESPFolder = Instance.new("Folder")
+mysteryBoxESPFolder.Name = "MysteryBoxESP"
+protectGui(mysteryBoxESPFolder)
+
+local papESPEnabled = false
+local papBillboards = {}
+local papESPFolder = Instance.new("Folder")
+papESPFolder.Name = "PAPEsp"
+protectGui(papESPFolder)
+
+local function createMysteryBoxBillboard(box)
+    local primary = box.PrimaryPart or box:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "MysteryBoxESP_" .. box.Name
+    billboard.Adornee = primary
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+    billboard.Size = UDim2.fromOffset(140, 58)
+    billboard.ResetOnSpawn = false
+    billboard.ClipsDescendants = false
+    billboard.Parent = mysteryBoxESPFolder
+
+    local frame = Instance.new("Frame", billboard)
+    frame.BorderSizePixel = 0
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.3
+    frame.Size = UDim2.fromScale(1, 1)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", frame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = Color3.fromRGB(0, 220, 180)
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(0, 220, 180)
+    stroke.Thickness = 1.2
+
+    local gradient = Instance.new("UIGradient", stroke)
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 180)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 255, 240)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 220, 180)),
+    }
+
+    local titleLabel = Instance.new("TextLabel", frame)
+    titleLabel.BorderSizePixel = 0
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    titleLabel.TextColor3 = Color3.fromRGB(0, 220, 180)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextScaled = true
+    titleLabel.AnchorPoint = Vector2.new(0.5, 0)
+    titleLabel.Size = UDim2.new(0.92, 0, 0.42, 0)
+    titleLabel.Position = UDim2.new(0.5, 0, 0.05, 0)
+    titleLabel.Text = "MYSTERY BOX"
+    local tStroke = Instance.new("UIStroke", titleLabel)
+    tStroke.Color = Color3.fromRGB(0, 0, 0)
+    tStroke.Thickness = 1.5
+
+    local divider = Instance.new("Frame", frame)
+    divider.BorderSizePixel = 0
+    divider.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    divider.Size = UDim2.new(0.85, 0, 0, 1)
+    divider.AnchorPoint = Vector2.new(0.5, 0)
+    divider.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+    local weaponLabel = Instance.new("TextLabel", frame)
+    weaponLabel.Name = "WeaponLabel"
+    weaponLabel.BorderSizePixel = 0
+    weaponLabel.BackgroundTransparency = 1
+    weaponLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    weaponLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    weaponLabel.TextXAlignment = Enum.TextXAlignment.Center
+    weaponLabel.TextScaled = true
+    weaponLabel.AnchorPoint = Vector2.new(0.5, 0)
+    weaponLabel.Size = UDim2.new(0.92, 0, 0.36, 0)
+    weaponLabel.Position = UDim2.new(0.5, 0, 0.54, 0)
+    weaponLabel.Text = "..."
+    local wStroke = Instance.new("UIStroke", weaponLabel)
+    wStroke.Color = Color3.fromRGB(0, 0, 0)
+    wStroke.Thickness = 1
+
+    local distLabel = Instance.new("TextLabel", frame)
+    distLabel.Name = "DistLabel"
+    distLabel.BorderSizePixel = 0
+    distLabel.BackgroundTransparency = 1
+    distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    distLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
+    distLabel.Text = "0M"
+    distLabel.ZIndex = 10
+    local dStroke = Instance.new("UIStroke", distLabel)
+    dStroke.Color = Color3.fromRGB(0, 0, 0)
+    dStroke.Thickness = 1.5
+
+    local chosenWeapon = box:FindFirstChild("ChosenWeapon")
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then return end
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distLabel.Text = math.floor((root.Position - primary.Position).Magnitude) .. "M"
+        end
+        if chosenWeapon and chosenWeapon.Value ~= "" then
+            weaponLabel.Text = chosenWeapon.Value
+        else
+            weaponLabel.Text = "???"
+        end
+    end)
+
+    mysteryBoxBillboards[box] = { billboard = billboard, conn = conn }
+end
+
+local function removeMysteryBoxBillboard(box)
+    local data = mysteryBoxBillboards[box]
+    if data then
+        data.conn:Disconnect()
+        data.billboard:Destroy()
+        mysteryBoxBillboards[box] = nil
+    end
+end
+
+local mysteryBoxConn = nil
+
+local function enableMysteryBoxESP()
+    local boxFolder = workspace:FindFirstChild("Mystery Box")
+    if not boxFolder then return end
+    local boxModel = boxFolder:FindFirstChild("Box")
+    if boxModel then
+        createMysteryBoxBillboard(boxModel)
+    end
+    mysteryBoxConn = boxFolder.ChildAdded:Connect(function(child)
+        if child.Name == "Box" then
+            createMysteryBoxBillboard(child)
+        end
+    end)
+end
+
+local function disableMysteryBoxESP()
+    for box, _ in pairs(mysteryBoxBillboards) do
+        removeMysteryBoxBillboard(box)
+    end
+    if mysteryBoxConn then
+        mysteryBoxConn:Disconnect()
+        mysteryBoxConn = nil
+    end
+end
+
+local function createPAPBillboard(papModel)
+    local primary = papModel.PrimaryPart or papModel:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PAPESP"
+    billboard.Adornee = primary
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0)
+    billboard.Size = UDim2.fromOffset(140, 52)
+    billboard.ResetOnSpawn = false
+    billboard.ClipsDescendants = false
+    billboard.Parent = papESPFolder
+
+    local frame = Instance.new("Frame", billboard)
+    frame.BorderSizePixel = 0
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.3
+    frame.Size = UDim2.fromScale(1, 1)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", frame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(180, 0, 255)
+    stroke.Thickness = 1.2
+
+    local gradient = Instance.new("UIGradient", stroke)
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 0, 255)),
+    }
+
+    local titleLabel = Instance.new("TextLabel", frame)
+    titleLabel.BorderSizePixel = 0
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    titleLabel.TextColor3 = Color3.fromRGB(200, 80, 255)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextScaled = true
+    titleLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    titleLabel.Size = UDim2.new(0.92, 0, 0.5, 0)
+    titleLabel.Position = UDim2.new(0.5, 0, 0.35, 0)
+    titleLabel.Text = "PACK-A-PUNCH"
+    local tStroke = Instance.new("UIStroke", titleLabel)
+    tStroke.Color = Color3.fromRGB(0, 0, 0)
+    tStroke.Thickness = 1.5
+
+    local distLabel = Instance.new("TextLabel", frame)
+    distLabel.Name = "DistLabel"
+    distLabel.BorderSizePixel = 0
+    distLabel.BackgroundTransparency = 1
+    distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    distLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
+    distLabel.Text = "0M"
+    distLabel.ZIndex = 10
+    local dStroke = Instance.new("UIStroke", distLabel)
+    dStroke.Color = Color3.fromRGB(0, 0, 0)
+    dStroke.Thickness = 1.5
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then return end
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distLabel.Text = math.floor((root.Position - primary.Position).Magnitude) .. "M"
+        end
+    end)
+
+    papBillboards[papModel] = { billboard = billboard, conn = conn }
+end
+
+local function disablePAPESP()
+    for model, data in pairs(papBillboards) do
+        data.conn:Disconnect()
+        data.billboard:Destroy()
+        papBillboards[model] = nil
+    end
+end
+
+local function enablePAPESP()
+    local papFolder = workspace:FindFirstChild("PACKAPUNCH")
+    if not papFolder then return end
+    local papModel = papFolder:FindFirstChild("PackAPunch")
+    if papModel then
+        createPAPBillboard(papModel)
+    end
+end
+
 local hitboxEnabled = false
 local hitboxSize = 10
 local hitboxColor = Color3.fromRGB(255, 50, 50)
@@ -1498,8 +1768,34 @@ VisualsTab:Colorpicker({
         end
     end,
 })
+
+VisualsTab:Space()
+
+VisualsTab:Toggle({
+    Flag     = "MysteryBoxESP",
+    Title    = "Mystery Box ESP",
+    Desc     = "shows box location + chosen weapon",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        mysteryBoxESPEnabled = state
+        if state then enableMysteryBoxESP() else disableMysteryBoxESP() end
+    end,
+})
+
+VisualsTab:Toggle({
+    Flag     = "PackAPunchESP",
+    Title    = "Pack-A-Punch ESP",
+    Desc     = "shows PAP location",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        papESPEnabled = state
+        if state then enablePAPESP() else disablePAPESP() end
+    end,
+})
+
 HitboxTab:Toggle({
-    Flag     = "HitboxExpander",
     Title    = "Hitbox Expander",
     Desc     = "Expands killer hitbox. May cause killer to glitch into ground or appear dead client-side",
     Value    = false,
@@ -1704,7 +2000,7 @@ EndlessSurvivalTab:Space()
 
 EndlessSurvivalTab:Button({
     Title    = "Kill All Killers",
-    Desc     = "Kills all killers once (client side)",
+    Desc     = "kill killers in game",
     Locked   = false,
     Callback = function()
         for _, model in ipairs(KillersFolder:GetChildren()) do
@@ -1723,8 +2019,8 @@ local loopKillThread = nil
 
 EndlessSurvivalTab:Toggle({
     Flag     = "LoopKillKillers",
-    Title    = "Loop Kill All Killers",
-    Desc     = "Continuously kills all killers (client side)",
+    Title    = "Loop Kill Killers",
+    Desc     = "loop kills killers",
     Value    = false,
     Locked   = false,
     Callback = function(state)
@@ -1753,7 +2049,7 @@ EndlessSurvivalTab:Space()
 EndlessSurvivalTab:Toggle({
     Flag     = "AutoRepairBarriers",
     Title    = "Auto Repair Barriers",
-    Desc     = "Finds and triggers the nearest repair prompt",
+    Desc     = "fires repair prompts",
     Value    = false,
     Locked   = false,
     Callback = function(state)
