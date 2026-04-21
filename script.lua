@@ -215,17 +215,518 @@ local playerNameColor = Color3.fromRGB(80, 180, 255)
 
 local mysteryBoxESPEnabled = false
 local mysteryBoxBillboards = {}
+local mysteryBoxDrawings = {}
+local mysteryBoxDrawOverride = false
 local mysteryBoxESPFolder = Instance.new("Folder")
 mysteryBoxESPFolder.Name = "MysteryBoxESP"
 protectGui(mysteryBoxESPFolder)
 
 local papESPEnabled = false
 local papBillboards = {}
+local papDrawings = {}
+local papDrawOverride = false
 local papESPFolder = Instance.new("Folder")
 papESPFolder.Name = "PAPEsp"
 protectGui(papESPFolder)
 
+local MB_COLOR = Color3.fromRGB(0, 220, 180)
+local PAP_COLOR = Color3.fromRGB(180, 0, 255)
+
 local function createMysteryBoxBillboard(box)
+    local primary = box.PrimaryPart or box:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "MysteryBoxESP_" .. box.Name
+    billboard.Adornee = primary
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+    billboard.Size = UDim2.fromOffset(140, 58)
+    billboard.ResetOnSpawn = false
+    billboard.ClipsDescendants = false
+    billboard.Parent = mysteryBoxESPFolder
+
+    local frame = Instance.new("Frame", billboard)
+    frame.BorderSizePixel = 0
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.3
+    frame.Size = UDim2.fromScale(1, 1)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", frame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = MB_COLOR
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = MB_COLOR
+    stroke.Thickness = 1.2
+
+    local gradient = Instance.new("UIGradient", stroke)
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, MB_COLOR),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 255, 240)),
+        ColorSequenceKeypoint.new(1, MB_COLOR),
+    }
+
+    local titleLabel = Instance.new("TextLabel", frame)
+    titleLabel.BorderSizePixel = 0
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    titleLabel.TextColor3 = MB_COLOR
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextScaled = true
+    titleLabel.AnchorPoint = Vector2.new(0.5, 0)
+    titleLabel.Size = UDim2.new(0.92, 0, 0.42, 0)
+    titleLabel.Position = UDim2.new(0.5, 0, 0.05, 0)
+    titleLabel.Text = "MYSTERY BOX"
+    local tStroke = Instance.new("UIStroke", titleLabel)
+    tStroke.Color = Color3.fromRGB(0, 0, 0)
+    tStroke.Thickness = 1.5
+
+    local divider = Instance.new("Frame", frame)
+    divider.BorderSizePixel = 0
+    divider.BackgroundColor3 = Color3.fromRGB(0, 120, 100)
+    divider.Size = UDim2.new(0.85, 0, 0, 1)
+    divider.AnchorPoint = Vector2.new(0.5, 0)
+    divider.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+    local weaponLabel = Instance.new("TextLabel", frame)
+    weaponLabel.Name = "WeaponLabel"
+    weaponLabel.BorderSizePixel = 0
+    weaponLabel.BackgroundTransparency = 1
+    weaponLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    weaponLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    weaponLabel.TextXAlignment = Enum.TextXAlignment.Center
+    weaponLabel.TextScaled = true
+    weaponLabel.AnchorPoint = Vector2.new(0.5, 0)
+    weaponLabel.Size = UDim2.new(0.92, 0, 0.36, 0)
+    weaponLabel.Position = UDim2.new(0.5, 0, 0.54, 0)
+    weaponLabel.Text = "..."
+    local wStroke = Instance.new("UIStroke", weaponLabel)
+    wStroke.Color = Color3.fromRGB(0, 0, 0)
+    wStroke.Thickness = 1
+
+    local distLabel = Instance.new("TextLabel", frame)
+    distLabel.Name = "DistLabel"
+    distLabel.BorderSizePixel = 0
+    distLabel.BackgroundTransparency = 1
+    distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    distLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
+    distLabel.Text = "0M"
+    distLabel.ZIndex = 10
+    local dStroke = Instance.new("UIStroke", distLabel)
+    dStroke.Color = Color3.fromRGB(0, 0, 0)
+    dStroke.Thickness = 1.5
+
+    local chosenWeapon = box:FindFirstChild("ChosenWeapon")
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then return end
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distLabel.Text = math.floor((root.Position - primary.Position).Magnitude) .. "M"
+        end
+        weaponLabel.Text = (chosenWeapon and chosenWeapon.Value ~= "") and chosenWeapon.Value or "???"
+    end)
+
+    mysteryBoxBillboards[box] = { billboard = billboard, conn = conn, primary = primary }
+end
+
+local function createMysteryBoxDrawing(box)
+    local primary = box.PrimaryPart or box:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local function newLine()
+        local l = Drawing.new("Line")
+        l.Thickness = 1.5
+        l.Color = MB_COLOR
+        l.Transparency = 1
+        l.Visible = false
+        return l
+    end
+    local function newText(size)
+        local t = Drawing.new("Text")
+        t.Size = size or 14
+        t.Color = MB_COLOR
+        t.Outline = true
+        t.Center = true
+        t.Visible = false
+        return t
+    end
+
+    local corners = {}
+    for i = 1, 8 do corners[i] = newLine() end
+    local line = newLine()
+    local nameText = newText(14)
+    nameText.Text = "MYSTERY BOX"
+    local weaponText = newText(12)
+    weaponText.Color = Color3.fromRGB(200, 200, 200)
+    weaponText.Text = "???"
+    local distText = newText(11)
+    distText.Color = Color3.fromRGB(150, 150, 150)
+
+    local chosenWeapon = box:FindFirstChild("ChosenWeapon")
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then
+            for _, l in ipairs(corners) do l.Visible = false end
+            line.Visible = false
+            nameText.Visible = false
+            weaponText.Visible = false
+            distText.Visible = false
+            return
+        end
+        local camera = workspace.CurrentCamera
+        local screenSize = camera.ViewportSize
+        local screenCenter = Vector2.new(screenSize.X / 2, screenSize.Y)
+        local rootPos = primary.Position
+        local sp, onScreen = camera:WorldToViewportPoint(rootPos)
+        if not onScreen or sp.Z <= 0 then
+            for _, l in ipairs(corners) do l.Visible = false end
+            line.Visible = false
+            nameText.Visible = false
+            weaponText.Visible = false
+            distText.Visible = false
+            return
+        end
+        local screenPos = Vector2.new(sp.X, sp.Y)
+        local tspV = camera:WorldToViewportPoint(rootPos + Vector3.new(0, 2.5, 0))
+        local bspV = camera:WorldToViewportPoint(rootPos + Vector3.new(0, -2.5, 0))
+        local h = math.abs(bspV.Y - tspV.Y)
+        local w = h * 0.9
+        local bx = screenPos.X - w / 2
+        local by = tspV.Y
+        local x2, y2 = bx + w, by + h
+        local cl = math.min(6, w * 0.3, h * 0.3)
+        local pts = {
+            {Vector2.new(bx, by),  Vector2.new(bx+cl, by)},
+            {Vector2.new(bx, by),  Vector2.new(bx, by+cl)},
+            {Vector2.new(x2, by),  Vector2.new(x2-cl, by)},
+            {Vector2.new(x2, by),  Vector2.new(x2, by+cl)},
+            {Vector2.new(bx, y2),  Vector2.new(bx+cl, y2)},
+            {Vector2.new(bx, y2),  Vector2.new(bx, y2-cl)},
+            {Vector2.new(x2, y2),  Vector2.new(x2-cl, y2)},
+            {Vector2.new(x2, y2),  Vector2.new(x2, y2-cl)},
+        }
+        for i, p in ipairs(pts) do
+            corners[i].From = p[1]
+            corners[i].To = p[2]
+            corners[i].Visible = true
+        end
+        line.From = screenCenter
+        line.To = screenPos
+        line.Visible = true
+        nameText.Position = Vector2.new(screenPos.X, by - 16)
+        nameText.Visible = true
+        local wname = (chosenWeapon and chosenWeapon.Value ~= "") and chosenWeapon.Value or "???"
+        weaponText.Text = wname
+        weaponText.Position = Vector2.new(screenPos.X, y2 + 2)
+        weaponText.Visible = true
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distText.Text = math.floor((root.Position - rootPos).Magnitude) .. "m"
+            distText.Position = Vector2.new(screenPos.X, y2 + 16)
+            distText.Visible = true
+        end
+    end)
+
+    mysteryBoxDrawings[box] = { corners = corners, line = line, nameText = nameText, weaponText = weaponText, distText = distText, conn = conn, primary = primary }
+end
+
+local function removeMysteryBoxBillboard(box)
+    local data = mysteryBoxBillboards[box]
+    if data then
+        data.conn:Disconnect()
+        data.billboard:Destroy()
+        mysteryBoxBillboards[box] = nil
+    end
+end
+
+local function removeMysteryBoxDrawing(box)
+    local data = mysteryBoxDrawings[box]
+    if data then
+        data.conn:Disconnect()
+        for _, l in ipairs(data.corners) do l:Remove() end
+        data.line:Remove()
+        data.nameText:Remove()
+        data.weaponText:Remove()
+        data.distText:Remove()
+        mysteryBoxDrawings[box] = nil
+    end
+end
+
+local mysteryBoxConn = nil
+
+local function enableMysteryBoxESP()
+    local boxFolder = workspace:FindFirstChild("Mystery Box")
+    if not boxFolder then return end
+    local boxModel = boxFolder:FindFirstChild("Box")
+    if boxModel then
+        if mysteryBoxDrawOverride then
+            createMysteryBoxDrawing(boxModel)
+        else
+            createMysteryBoxBillboard(boxModel)
+        end
+    end
+    mysteryBoxConn = boxFolder.ChildAdded:Connect(function(child)
+        if child.Name == "Box" then
+            if mysteryBoxDrawOverride then
+                createMysteryBoxDrawing(child)
+            else
+                createMysteryBoxBillboard(child)
+            end
+        end
+    end)
+end
+
+local function disableMysteryBoxESP()
+    for box in pairs(mysteryBoxBillboards) do removeMysteryBoxBillboard(box) end
+    for box in pairs(mysteryBoxDrawings) do removeMysteryBoxDrawing(box) end
+    if mysteryBoxConn then mysteryBoxConn:Disconnect() mysteryBoxConn = nil end
+end
+
+local function refreshMysteryBoxESP()
+    disableMysteryBoxESP()
+    if mysteryBoxESPEnabled then enableMysteryBoxESP() end
+end
+
+local function createPAPBillboard(papModel)
+    local primary = papModel.PrimaryPart or papModel:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PAPESP"
+    billboard.Adornee = primary
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0)
+    billboard.Size = UDim2.fromOffset(140, 52)
+    billboard.ResetOnSpawn = false
+    billboard.ClipsDescendants = false
+    billboard.Parent = papESPFolder
+
+    local frame = Instance.new("Frame", billboard)
+    frame.BorderSizePixel = 0
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.3
+    frame.Size = UDim2.fromScale(1, 1)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", frame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = PAP_COLOR
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = PAP_COLOR
+    stroke.Thickness = 1.2
+
+    local gradient = Instance.new("UIGradient", stroke)
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, PAP_COLOR),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100, 255)),
+        ColorSequenceKeypoint.new(1, PAP_COLOR),
+    }
+
+    local titleLabel = Instance.new("TextLabel", frame)
+    titleLabel.BorderSizePixel = 0
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    titleLabel.TextColor3 = Color3.fromRGB(200, 80, 255)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextScaled = true
+    titleLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    titleLabel.Size = UDim2.new(0.92, 0, 0.5, 0)
+    titleLabel.Position = UDim2.new(0.5, 0, 0.35, 0)
+    titleLabel.Text = "PACK-A-PUNCH"
+    local tStroke = Instance.new("UIStroke", titleLabel)
+    tStroke.Color = Color3.fromRGB(0, 0, 0)
+    tStroke.Thickness = 1.5
+
+    local distLabel = Instance.new("TextLabel", frame)
+    distLabel.Name = "DistLabel"
+    distLabel.BorderSizePixel = 0
+    distLabel.BackgroundTransparency = 1
+    distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    distLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
+    distLabel.Text = "0M"
+    distLabel.ZIndex = 10
+    local dStroke = Instance.new("UIStroke", distLabel)
+    dStroke.Color = Color3.fromRGB(0, 0, 0)
+    dStroke.Thickness = 1.5
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then return end
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distLabel.Text = math.floor((root.Position - primary.Position).Magnitude) .. "M"
+        end
+    end)
+
+    papBillboards[papModel] = { billboard = billboard, conn = conn, primary = primary }
+end
+
+local function createPAPDrawing(papModel)
+    local primary = papModel.PrimaryPart or papModel:FindFirstChildOfClass("BasePart")
+    if not primary then return end
+
+    local function newLine()
+        local l = Drawing.new("Line")
+        l.Thickness = 1.5
+        l.Color = PAP_COLOR
+        l.Transparency = 1
+        l.Visible = false
+        return l
+    end
+    local function newText(size)
+        local t = Drawing.new("Text")
+        t.Size = size or 14
+        t.Color = PAP_COLOR
+        t.Outline = true
+        t.Center = true
+        t.Visible = false
+        return t
+    end
+
+    local corners = {}
+    for i = 1, 8 do corners[i] = newLine() end
+    local line = newLine()
+    local nameText = newText(14)
+    nameText.Text = "PACK-A-PUNCH"
+    local distText = newText(11)
+    distText.Color = Color3.fromRGB(150, 150, 150)
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not primary or not primary.Parent then
+            for _, l in ipairs(corners) do l.Visible = false end
+            line.Visible = false
+            nameText.Visible = false
+            distText.Visible = false
+            return
+        end
+        local camera = workspace.CurrentCamera
+        local screenSize = camera.ViewportSize
+        local screenCenter = Vector2.new(screenSize.X / 2, screenSize.Y)
+        local rootPos = primary.Position
+        local sp, onScreen = camera:WorldToViewportPoint(rootPos)
+        if not onScreen or sp.Z <= 0 then
+            for _, l in ipairs(corners) do l.Visible = false end
+            line.Visible = false
+            nameText.Visible = false
+            distText.Visible = false
+            return
+        end
+        local screenPos = Vector2.new(sp.X, sp.Y)
+        local tspV = camera:WorldToViewportPoint(rootPos + Vector3.new(0, 3, 0))
+        local bspV = camera:WorldToViewportPoint(rootPos + Vector3.new(0, -3, 0))
+        local h = math.abs(bspV.Y - tspV.Y)
+        local w = h * 0.9
+        local bx = screenPos.X - w / 2
+        local by = tspV.Y
+        local x2, y2 = bx + w, by + h
+        local cl = math.min(6, w * 0.3, h * 0.3)
+        local pts = {
+            {Vector2.new(bx, by),  Vector2.new(bx+cl, by)},
+            {Vector2.new(bx, by),  Vector2.new(bx, by+cl)},
+            {Vector2.new(x2, by),  Vector2.new(x2-cl, by)},
+            {Vector2.new(x2, by),  Vector2.new(x2, by+cl)},
+            {Vector2.new(bx, y2),  Vector2.new(bx+cl, y2)},
+            {Vector2.new(bx, y2),  Vector2.new(bx, y2-cl)},
+            {Vector2.new(x2, y2),  Vector2.new(x2-cl, y2)},
+            {Vector2.new(x2, y2),  Vector2.new(x2, y2-cl)},
+        }
+        for i, p in ipairs(pts) do
+            corners[i].From = p[1]
+            corners[i].To = p[2]
+            corners[i].Visible = true
+        end
+        line.From = screenCenter
+        line.To = screenPos
+        line.Visible = true
+        nameText.Position = Vector2.new(screenPos.X, by - 16)
+        nameText.Visible = true
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            distText.Text = math.floor((root.Position - rootPos).Magnitude) .. "m"
+            distText.Position = Vector2.new(screenPos.X, y2 + 2)
+            distText.Visible = true
+        end
+    end)
+
+    papDrawings[papModel] = { corners = corners, line = line, nameText = nameText, distText = distText, conn = conn, primary = primary }
+end
+
+local function removePAPBillboard(model)
+    local data = papBillboards[model]
+    if data then
+        data.conn:Disconnect()
+        data.billboard:Destroy()
+        papBillboards[model] = nil
+    end
+end
+
+local function removePAPDrawing(model)
+    local data = papDrawings[model]
+    if data then
+        data.conn:Disconnect()
+        for _, l in ipairs(data.corners) do l:Remove() end
+        data.line:Remove()
+        data.nameText:Remove()
+        data.distText:Remove()
+        papDrawings[model] = nil
+    end
+end
+
+local function disablePAPESP()
+    for model in pairs(papBillboards) do removePAPBillboard(model) end
+    for model in pairs(papDrawings) do removePAPDrawing(model) end
+end
+
+local function enablePAPESP()
+    local papFolder = workspace:FindFirstChild("PACKAPUNCH")
+    if not papFolder then return end
+    local papModel = papFolder:FindFirstChild("PackAPunch")
+    if papModel then
+        if papDrawOverride then
+            createPAPDrawing(papModel)
+        else
+            createPAPBillboard(papModel)
+        end
+    end
+end
+
+local function refreshPAPESP()
+    disablePAPESP()
+    if papESPEnabled then enablePAPESP() end
+end
     local primary = box.PrimaryPart or box:FindFirstChildOfClass("BasePart")
     if not primary then return end
 
@@ -1784,6 +2285,17 @@ VisualsTab:Toggle({
 })
 
 VisualsTab:Toggle({
+    Flag     = "MysteryBoxDrawOverride",
+    Title    = "Mystery Box Drawing Override",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        mysteryBoxDrawOverride = state
+        refreshMysteryBoxESP()
+    end,
+})
+
+VisualsTab:Toggle({
     Flag     = "PackAPunchESP",
     Title    = "Pack-A-Punch ESP",
     Desc     = "shows PAP location",
@@ -1792,6 +2304,17 @@ VisualsTab:Toggle({
     Callback = function(state)
         papESPEnabled = state
         if state then enablePAPESP() else disablePAPESP() end
+    end,
+})
+
+VisualsTab:Toggle({
+    Flag     = "PAPDrawOverride",
+    Title    = "Pack-A-Punch Drawing Override",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        papDrawOverride = state
+        refreshPAPESP()
     end,
 })
 
