@@ -236,7 +236,9 @@ local function applyHRP(hrp)
     hrp.Transparency = hitboxTransparency
     hrp.Material = hitboxMaterial
     hrp.Color = hitboxColor
-    hrp.CanCollide = false
+    if noCollideEnabled then
+        hrp.CanCollide = false
+    end
 end
 
 local function applyHitboxes()
@@ -261,14 +263,38 @@ local function restoreHitboxes()
 end
 
 local hitboxConnection = nil
+local hitboxDescConnections = {}
+
+local function watchKillerRespawn(model)
+    local conn = model.DescendantAdded:Connect(function(desc)
+        if not hitboxEnabled then return end
+        if desc.Name ~= "HumanoidRootPart" then return end
+        task.defer(function()
+            task.wait(1)
+            if not hitboxEnabled then return end
+            for hrp in pairs(originalHRP) do
+                if not hrp.Parent then
+                    originalHRP[hrp] = nil
+                end
+            end
+            if desc.Parent then applyHRP(desc) end
+        end)
+    end)
+    hitboxDescConnections[model] = conn
+end
 
 local function enableHitboxes()
     applyHitboxes()
+    for _, model in ipairs(KillersFolder:GetChildren()) do
+        watchKillerRespawn(model)
+    end
     hitboxConnection = KillersFolder.ChildAdded:Connect(function(child)
         task.defer(function()
+            task.wait(1)
             if not hitboxEnabled then return end
             local hrp = child:FindFirstChild("HumanoidRootPart")
             if hrp then applyHRP(hrp) end
+            watchKillerRespawn(child)
         end)
     end)
 end
@@ -279,6 +305,10 @@ local function disableHitboxes()
         hitboxConnection:Disconnect()
         hitboxConnection = nil
     end
+    for _, conn in pairs(hitboxDescConnections) do
+        conn:Disconnect()
+    end
+    hitboxDescConnections = {}
 end
 
 RunService.Heartbeat:Connect(function()
@@ -309,83 +339,89 @@ local function createKillerBillboard(model)
     billboard.Name = "KillerESP_" .. model.Name
     billboard.Adornee = primaryPart
     billboard.AlwaysOnTop = true
-    billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.5, 0)
-    billboard.Size = UDim2.fromOffset(90, 44)
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+    billboard.Size = UDim2.fromOffset(110, 52)
     billboard.ResetOnSpawn = false
     billboard.ClipsDescendants = false
     billboard.Parent = killerESPFolder
 
     local mainFrame = Instance.new("Frame", billboard)
     mainFrame.BorderSizePixel = 0
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
-    mainFrame.BackgroundTransparency = 0.4
+    mainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+    mainFrame.BackgroundTransparency = 0.25
     mainFrame.Size = UDim2.fromScale(1, 1)
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     mainFrame.Position = UDim2.fromScale(0.5, 0.5)
 
     local corner = Instance.new("UICorner", mainFrame)
-    corner.CornerRadius = UDim.new(0.15, 0)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", mainFrame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
 
     local stroke = Instance.new("UIStroke", mainFrame)
-    stroke.Color = Color3.fromRGB(220, 0, 0)
-    stroke.Thickness = 1.5
-
-    local strokeGrad = Instance.new("UIGradient", stroke)
-    strokeGrad.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 0, 0)),
-    }
+    stroke.Color = Color3.fromRGB(180, 20, 20)
+    stroke.Thickness = 1
 
     local nameLabel = Instance.new("TextLabel", mainFrame)
-    nameLabel.TextWrapped = true
     nameLabel.BorderSizePixel = 0
-    nameLabel.TextScaled = true
     nameLabel.BackgroundTransparency = 1
     nameLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    nameLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+    nameLabel.TextScaled = true
     nameLabel.AnchorPoint = Vector2.new(0.5, 0)
-    nameLabel.Size = UDim2.fromScale(0.9, 0.45)
-    nameLabel.Position = UDim2.fromScale(0.5, 0.02)
+    nameLabel.Size = UDim2.new(0.92, 0, 0.44, 0)
+    nameLabel.Position = UDim2.new(0.5, 0, 0.06, 0)
     nameLabel.Text = model.Name
-
     local nameStroke = Instance.new("UIStroke", nameLabel)
     nameStroke.Color = Color3.fromRGB(0, 0, 0)
     nameStroke.Thickness = 1.5
 
+    local divider = Instance.new("Frame", mainFrame)
+    divider.BorderSizePixel = 0
+    divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    divider.Size = UDim2.new(0.85, 0, 0, 1)
+    divider.AnchorPoint = Vector2.new(0.5, 0)
+    divider.Position = UDim2.new(0.5, 0, 0.5, 0)
+
     local hpLabel = Instance.new("TextLabel", mainFrame)
     hpLabel.Name = "HPLabel"
-    hpLabel.TextWrapped = true
     hpLabel.BorderSizePixel = 0
-    hpLabel.TextScaled = true
     hpLabel.BackgroundTransparency = 1
     hpLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    hpLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hpLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    hpLabel.TextXAlignment = Enum.TextXAlignment.Center
+    hpLabel.TextScaled = true
     hpLabel.AnchorPoint = Vector2.new(0.5, 0)
-    hpLabel.Size = UDim2.fromScale(0.9, 0.35)
-    hpLabel.Position = UDim2.fromScale(0.5, 0.52)
+    hpLabel.Size = UDim2.new(0.92, 0, 0.36, 0)
+    hpLabel.Position = UDim2.new(0.5, 0, 0.54, 0)
     hpLabel.Text = "HP: ?"
-
     local hpStroke = Instance.new("UIStroke", hpLabel)
     hpStroke.Color = Color3.fromRGB(0, 0, 0)
-    hpStroke.Thickness = 1.5
+    hpStroke.Thickness = 1
 
     local distLabel = Instance.new("TextLabel", mainFrame)
     distLabel.Name = "DistLabel"
-    distLabel.TextWrapped = true
     distLabel.BorderSizePixel = 0
-    distLabel.TextScaled = true
     distLabel.BackgroundTransparency = 1
     distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    distLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-    distLabel.Size = UDim2.fromScale(0.9, 0.3)
-    distLabel.Position = UDim2.fromScale(0.5, 1.4)
+    distLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
     distLabel.Text = "0M"
     distLabel.ZIndex = 10
-
     local distStroke = Instance.new("UIStroke", distLabel)
     distStroke.Color = Color3.fromRGB(0, 0, 0)
-    distStroke.Thickness = 2
+    distStroke.Thickness = 1.5
 
     local conn = RunService.Heartbeat:Connect(function()
         local char = Players.LocalPlayer.Character
@@ -393,17 +429,13 @@ local function createKillerBillboard(model)
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
         if not primaryPart or not primaryPart.Parent then return end
-
         local dist = math.floor((root.Position - primaryPart.Position).Magnitude)
         distLabel.Text = dist .. "M"
-
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         if humanoid then
             local hp = math.floor(humanoid.Health)
             local maxHp = math.floor(humanoid.MaxHealth)
             hpLabel.Text = "HP: " .. hp .. "/" .. maxHp
-            local ratio = math.clamp(hp / math.max(maxHp, 1), 0, 1)
-            hpLabel.TextColor3 = Color3.fromRGB(255, math.floor(ratio * 255), math.floor(ratio * 255))
         end
     end)
 
@@ -425,8 +457,11 @@ local function renderDrawings(camera, screenSize, screenCenter, myRoot, drawings
     for model, data in pairs(drawings) do
         local primaryPart = data.primaryPart
         if not primaryPart or not primaryPart.Parent then
+            if data.shadows then for _, s in ipairs(data.shadows) do s.Visible = false end end
             for _, l in ipairs(data.corners) do l.Visible = false end
             data.line.Visible = false
+            if data.hpBarBg then data.hpBarBg.Visible = false end
+            if data.hpBarFill then data.hpBarFill.Visible = false end
             data.nameText.Visible = false
             data.hpText.Visible = false
             data.distText.Visible = false
@@ -452,11 +487,13 @@ local function renderDrawings(camera, screenSize, screenCenter, myRoot, drawings
             data.distText.Text = math.floor((myRoot.Position - rootPos).Magnitude) .. "m"
         end
 
+        local hpRatio = 1
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         if humanoid then
             local hp = math.floor(humanoid.Health)
             local maxHp = math.floor(humanoid.MaxHealth)
-            data.hpText.Text = "HP " .. hp .. "/" .. maxHp
+            hpRatio = math.clamp(hp / math.max(maxHp, 1), 0, 1)
+            data.hpText.Text = hp .. "/" .. maxHp
             data.hpText.Color = Color3.fromRGB(255, 255, 255)
         end
         if data.toolText then
@@ -539,6 +576,14 @@ local function renderDrawings(camera, screenSize, screenCenter, myRoot, drawings
                     {Vector2.new(x2,    y2),    Vector2.new(x2-cl, y2)},
                     {Vector2.new(x2,    y2),    Vector2.new(x2,    y2-cl)},
                 }
+                if data.shadows then
+                    for i, p in ipairs(pts) do
+                        data.shadows[i].From    = p[1]
+                        data.shadows[i].To      = p[2]
+                        data.shadows[i].Visible = true
+                    end
+                    for i = 9, 12 do data.shadows[i].Visible = false end
+                end
                 for i, p in ipairs(pts) do
                     data.corners[i].From    = p[1]
                     data.corners[i].To      = p[2]
@@ -547,13 +592,32 @@ local function renderDrawings(camera, screenSize, screenCenter, myRoot, drawings
                 end
                 for i = 9, 12 do data.corners[i].Visible = false end
 
-                data.nameText.Position = Vector2.new(screenPos.X, by - 17)
-                data.hpText.Position   = Vector2.new(screenPos.X, y2 + 2)
-                data.distText.Position = Vector2.new(screenPos.X, y2 + 17)
-                if data.toolText then data.toolText.Position = Vector2.new(screenPos.X, y2 + 32) end
+                data.nameText.Position = Vector2.new(screenPos.X, by - 16)
+                data.hpText.Position   = Vector2.new(screenPos.X, y2 + 14)
+                data.distText.Position = Vector2.new(screenPos.X, y2 + 25)
+                if data.toolText then data.toolText.Position = Vector2.new(screenPos.X, y2 + 36) end
+
+                if data.hpBarBg then
+                    local barX = bx - 5
+                    local barH = h * hpRatio
+                    data.hpBarBg.From    = Vector2.new(barX, by)
+                    data.hpBarBg.To      = Vector2.new(barX, y2)
+                    data.hpBarBg.Visible = true
+                    data.hpBarFill.From  = Vector2.new(barX, y2)
+                    data.hpBarFill.To    = Vector2.new(barX, y2 - barH)
+                    data.hpBarFill.Color = Color3.fromRGB(
+                        math.floor((1 - hpRatio) * 255),
+                        math.floor(hpRatio * 220),
+                        60
+                    )
+                    data.hpBarFill.Visible = true
+                end
             end
         else
+            if data.shadows then for _, s in ipairs(data.shadows) do s.Visible = false end end
             for _, l in ipairs(data.corners) do l.Visible = false end
+            if data.hpBarBg then data.hpBarBg.Visible = false end
+            if data.hpBarFill then data.hpBarFill.Visible = false end
             data.nameText.Position = Vector2.new(screenPos.X, screenPos.Y - 30)
             data.hpText.Position   = Vector2.new(screenPos.X, screenPos.Y - 16)
             data.distText.Position = Vector2.new(screenPos.X, screenPos.Y - 1)
@@ -600,24 +664,43 @@ end
 local function createKillerDrawings(model)
     local primaryPart = model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
 
+    local shadows = {}
+    for i = 1, 12 do
+        local s = Drawing.new("Line")
+        s.Visible   = false
+        s.Color     = Color3.fromRGB(0, 0, 0)
+        s.Thickness = 3.5
+        shadows[i]  = s
+    end
+
     local corners = {}
     for i = 1, 12 do
         local l = Drawing.new("Line")
         l.Visible   = false
         l.Color     = killerBoxColor
-        l.Thickness = 1.8
+        l.Thickness = 1.5
         corners[i]  = l
     end
 
     local line = Drawing.new("Line")
     line.Visible   = false
     line.Color     = killerBoxColor
-    line.Thickness = 1.2
+    line.Thickness = 1
+
+    local hpBarBg = Drawing.new("Line")
+    hpBarBg.Visible   = false
+    hpBarBg.Color     = Color3.fromRGB(30, 30, 30)
+    hpBarBg.Thickness = 4
+
+    local hpBarFill = Drawing.new("Line")
+    hpBarFill.Visible   = false
+    hpBarFill.Color     = Color3.fromRGB(255, 255, 255)
+    hpBarFill.Thickness = 4
 
     local nameText = Drawing.new("Text")
     nameText.Visible       = false
     nameText.Color         = Color3.fromRGB(255, 255, 255)
-    nameText.Size          = 14
+    nameText.Size          = 13
     nameText.Font          = Drawing.Fonts.Monospace
     nameText.Outline       = true
     nameText.OutlineColor  = Color3.fromRGB(0, 0, 0)
@@ -626,8 +709,8 @@ local function createKillerDrawings(model)
 
     local hpText = Drawing.new("Text")
     hpText.Visible      = false
-    hpText.Color        = Color3.fromRGB(255, 255, 255)
-    hpText.Size         = 13
+    hpText.Color        = Color3.fromRGB(200, 200, 200)
+    hpText.Size         = 11
     hpText.Font         = Drawing.Fonts.Monospace
     hpText.Outline      = true
     hpText.OutlineColor = Color3.fromRGB(0, 0, 0)
@@ -636,8 +719,8 @@ local function createKillerDrawings(model)
 
     local distText = Drawing.new("Text")
     distText.Visible      = false
-    distText.Color        = Color3.fromRGB(200, 200, 200)
-    distText.Size         = 12
+    distText.Color        = Color3.fromRGB(140, 140, 140)
+    distText.Size         = 10
     distText.Font         = Drawing.Fonts.Monospace
     distText.Outline      = true
     distText.OutlineColor = Color3.fromRGB(0, 0, 0)
@@ -647,8 +730,11 @@ local function createKillerDrawings(model)
         model       = model,
         primaryPart = primaryPart,
         humanoid    = model:FindFirstChildOfClass("Humanoid"),
+        shadows     = shadows,
         corners     = corners,
         line        = line,
+        hpBarBg     = hpBarBg,
+        hpBarFill   = hpBarFill,
         nameText    = nameText,
         hpText      = hpText,
         distText    = distText,
@@ -660,8 +746,11 @@ end
 local function removeKillerDrawings(model)
     local data = killerDrawings[model]
     if data then
+        for _, l in ipairs(data.shadows) do l:Remove() end
         for _, l in ipairs(data.corners) do l:Remove() end
         data.line:Remove()
+        data.hpBarBg:Remove()
+        data.hpBarFill:Remove()
         data.nameText:Remove()
         data.hpText:Remove()
         data.distText:Remove()
@@ -708,83 +797,89 @@ local function createPlayerBillboard(model)
     billboard.Name = "PlayerESP_" .. model.Name
     billboard.Adornee = primaryPart
     billboard.AlwaysOnTop = true
-    billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.5, 0)
-    billboard.Size = UDim2.fromOffset(90, 44)
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+    billboard.Size = UDim2.fromOffset(110, 52)
     billboard.ResetOnSpawn = false
     billboard.ClipsDescendants = false
     billboard.Parent = playerESPFolder
 
     local mainFrame = Instance.new("Frame", billboard)
     mainFrame.BorderSizePixel = 0
-    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 20, 40)
-    mainFrame.BackgroundTransparency = 0.4
+    mainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+    mainFrame.BackgroundTransparency = 0.25
     mainFrame.Size = UDim2.fromScale(1, 1)
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     mainFrame.Position = UDim2.fromScale(0.5, 0.5)
 
     local corner = Instance.new("UICorner", mainFrame)
-    corner.CornerRadius = UDim.new(0.15, 0)
+    corner.CornerRadius = UDim.new(0, 4)
+
+    local topBar = Instance.new("Frame", mainFrame)
+    topBar.BorderSizePixel = 0
+    topBar.BackgroundColor3 = Color3.fromRGB(30, 120, 220)
+    topBar.Size = UDim2.new(1, 0, 0, 2)
+    topBar.Position = UDim2.fromScale(0, 0)
+    local topCorner = Instance.new("UICorner", topBar)
+    topCorner.CornerRadius = UDim.new(0, 4)
 
     local stroke = Instance.new("UIStroke", mainFrame)
-    stroke.Color = Color3.fromRGB(50, 150, 255)
-    stroke.Thickness = 1.5
-
-    local strokeGrad = Instance.new("UIGradient", stroke)
-    strokeGrad.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 180, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 80, 200)),
-    }
+    stroke.Color = Color3.fromRGB(30, 100, 200)
+    stroke.Thickness = 1
 
     local nameLabel = Instance.new("TextLabel", mainFrame)
-    nameLabel.TextWrapped = true
     nameLabel.BorderSizePixel = 0
-    nameLabel.TextScaled = true
     nameLabel.BackgroundTransparency = 1
     nameLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    nameLabel.TextColor3 = Color3.fromRGB(80, 180, 255)
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+    nameLabel.TextScaled = true
     nameLabel.AnchorPoint = Vector2.new(0.5, 0)
-    nameLabel.Size = UDim2.fromScale(0.9, 0.45)
-    nameLabel.Position = UDim2.fromScale(0.5, 0.02)
+    nameLabel.Size = UDim2.new(0.92, 0, 0.44, 0)
+    nameLabel.Position = UDim2.new(0.5, 0, 0.06, 0)
     nameLabel.Text = model.Name
-
     local nameStroke = Instance.new("UIStroke", nameLabel)
     nameStroke.Color = Color3.fromRGB(0, 0, 0)
     nameStroke.Thickness = 1.5
 
+    local divider = Instance.new("Frame", mainFrame)
+    divider.BorderSizePixel = 0
+    divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    divider.Size = UDim2.new(0.85, 0, 0, 1)
+    divider.AnchorPoint = Vector2.new(0.5, 0)
+    divider.Position = UDim2.new(0.5, 0, 0.5, 0)
+
     local hpLabel = Instance.new("TextLabel", mainFrame)
     hpLabel.Name = "HPLabel"
-    hpLabel.TextWrapped = true
     hpLabel.BorderSizePixel = 0
-    hpLabel.TextScaled = true
     hpLabel.BackgroundTransparency = 1
     hpLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    hpLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hpLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    hpLabel.TextXAlignment = Enum.TextXAlignment.Center
+    hpLabel.TextScaled = true
     hpLabel.AnchorPoint = Vector2.new(0.5, 0)
-    hpLabel.Size = UDim2.fromScale(0.9, 0.35)
-    hpLabel.Position = UDim2.fromScale(0.5, 0.52)
+    hpLabel.Size = UDim2.new(0.92, 0, 0.36, 0)
+    hpLabel.Position = UDim2.new(0.5, 0, 0.54, 0)
     hpLabel.Text = "HP: ?"
-
     local hpStroke = Instance.new("UIStroke", hpLabel)
     hpStroke.Color = Color3.fromRGB(0, 0, 0)
-    hpStroke.Thickness = 1.5
+    hpStroke.Thickness = 1
 
     local distLabel = Instance.new("TextLabel", mainFrame)
     distLabel.Name = "DistLabel"
-    distLabel.TextWrapped = true
     distLabel.BorderSizePixel = 0
-    distLabel.TextScaled = true
     distLabel.BackgroundTransparency = 1
     distLabel.FontFace = Font.new("rbxasset://fonts/families/Code.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    distLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-    distLabel.Size = UDim2.fromScale(0.9, 0.3)
-    distLabel.Position = UDim2.fromScale(0.5, 1.4)
+    distLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+    distLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distLabel.TextScaled = true
+    distLabel.AnchorPoint = Vector2.new(0.5, 0)
+    distLabel.Size = UDim2.new(0.92, 0, 0.3, 0)
+    distLabel.Position = UDim2.new(0.5, 0, 1.08, 0)
     distLabel.Text = "0M"
     distLabel.ZIndex = 10
-
     local distStroke = Instance.new("UIStroke", distLabel)
     distStroke.Color = Color3.fromRGB(0, 0, 0)
-    distStroke.Thickness = 2
+    distStroke.Thickness = 1.5
 
     local conn = RunService.Heartbeat:Connect(function()
         local char = Players.LocalPlayer.Character
@@ -792,17 +887,13 @@ local function createPlayerBillboard(model)
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
         if not primaryPart or not primaryPart.Parent then return end
-
         local dist = math.floor((root.Position - primaryPart.Position).Magnitude)
         distLabel.Text = dist .. "M"
-
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         if humanoid then
             local hp = math.floor(humanoid.Health)
             local maxHp = math.floor(humanoid.MaxHealth)
             hpLabel.Text = "HP: " .. hp .. "/" .. maxHp
-            local ratio = math.clamp(hp / math.max(maxHp, 1), 0, 1)
-            hpLabel.TextColor3 = Color3.fromRGB(255, math.floor(ratio * 255), math.floor(ratio * 255))
         end
     end)
 
@@ -837,10 +928,19 @@ local function createPlayerDrawings(model)
     line.Color     = playerBoxColor
     line.Thickness = 1.2
 
+    local playerShadows = {}
+    for i = 1, 12 do
+        local s = Drawing.new("Line")
+        s.Visible   = false
+        s.Color     = Color3.fromRGB(0, 0, 0)
+        s.Thickness = 3.5
+        playerShadows[i] = s
+    end
+
     local nameText = Drawing.new("Text")
     nameText.Visible       = false
     nameText.Color         = Color3.fromRGB(255, 255, 255)
-    nameText.Size          = 14
+    nameText.Size          = 13
     nameText.Font          = Drawing.Fonts.Monospace
     nameText.Outline       = true
     nameText.OutlineColor  = Color3.fromRGB(0, 0, 0)
@@ -849,8 +949,8 @@ local function createPlayerDrawings(model)
 
     local hpText = Drawing.new("Text")
     hpText.Visible      = false
-    hpText.Color        = Color3.fromRGB(255, 255, 255)
-    hpText.Size         = 13
+    hpText.Color        = Color3.fromRGB(200, 200, 200)
+    hpText.Size         = 11
     hpText.Font         = Drawing.Fonts.Monospace
     hpText.Outline      = true
     hpText.OutlineColor = Color3.fromRGB(0, 0, 0)
@@ -859,8 +959,8 @@ local function createPlayerDrawings(model)
 
     local distText = Drawing.new("Text")
     distText.Visible      = false
-    distText.Color        = Color3.fromRGB(200, 200, 200)
-    distText.Size         = 12
+    distText.Color        = Color3.fromRGB(140, 140, 140)
+    distText.Size         = 10
     distText.Font         = Drawing.Fonts.Monospace
     distText.Outline      = true
     distText.OutlineColor = Color3.fromRGB(0, 0, 0)
@@ -868,20 +968,33 @@ local function createPlayerDrawings(model)
 
     local toolText = Drawing.new("Text")
     toolText.Visible      = false
-    toolText.Color        = Color3.fromRGB(255, 255, 255)
-    toolText.Size         = 12
+    toolText.Color        = Color3.fromRGB(180, 180, 180)
+    toolText.Size         = 10
     toolText.Font         = Drawing.Fonts.Monospace
     toolText.Outline      = true
     toolText.OutlineColor = Color3.fromRGB(0, 0, 0)
     toolText.Text         = ""
     toolText.Center       = true
 
+    local hpBarBg = Drawing.new("Line")
+    hpBarBg.Visible   = false
+    hpBarBg.Color     = Color3.fromRGB(30, 30, 30)
+    hpBarBg.Thickness = 4
+
+    local hpBarFill = Drawing.new("Line")
+    hpBarFill.Visible   = false
+    hpBarFill.Color     = Color3.fromRGB(255, 255, 255)
+    hpBarFill.Thickness = 4
+
     playerDrawings[model] = {
         model       = model,
         primaryPart = primaryPart,
         humanoid    = model:FindFirstChildOfClass("Humanoid"),
+        shadows     = playerShadows,
         corners     = corners,
         line        = line,
+        hpBarBg     = hpBarBg,
+        hpBarFill   = hpBarFill,
         nameText    = nameText,
         hpText      = hpText,
         distText    = distText,
@@ -894,8 +1007,11 @@ end
 local function removePlayerDrawings(model)
     local data = playerDrawings[model]
     if data then
+        if data.shadows then for _, l in ipairs(data.shadows) do l:Remove() end end
         for _, l in ipairs(data.corners) do l:Remove() end
         data.line:Remove()
+        data.hpBarBg:Remove()
+        data.hpBarFill:Remove()
         data.nameText:Remove()
         data.hpText:Remove()
         data.distText:Remove()
@@ -1129,6 +1245,15 @@ WeaponsTab:Button({
             end
             task.wait(tpDelay)
         end
+        tweenActive = false
+    end,
+})
+
+WeaponsTab:Button({
+    Title    = "Stop Grabbing",
+    Desc     = "Stops any active teleport to guns",
+    Locked   = false,
+    Callback = function()
         tweenActive = false
     end,
 })
