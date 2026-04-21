@@ -1704,7 +1704,7 @@ EndlessSurvivalTab:Space()
 
 EndlessSurvivalTab:Button({
     Title    = "Kill All Killers",
-    Desc     = "Just client side",
+    Desc     = "Kills all killers once (client side)",
     Locked   = false,
     Callback = function()
         for _, model in ipairs(KillersFolder:GetChildren()) do
@@ -1713,6 +1713,38 @@ EndlessSurvivalTab:Button({
                 hum.Health = 0
             end
         end
+    end,
+})
+
+EndlessSurvivalTab:Space()
+
+local loopKillEnabled = false
+local loopKillThread = nil
+
+EndlessSurvivalTab:Toggle({
+    Flag     = "LoopKillKillers",
+    Title    = "Loop Kill All Killers",
+    Desc     = "Continuously kills all killers (client side)",
+    Value    = false,
+    Locked   = false,
+    Callback = function(state)
+        loopKillEnabled = state
+        if loopKillThread then
+            task.cancel(loopKillThread)
+            loopKillThread = nil
+        end
+        if not state then return end
+        loopKillThread = task.spawn(function()
+            while loopKillEnabled do
+                for _, model in ipairs(KillersFolder:GetChildren()) do
+                    local hum = model:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.Health = 0
+                    end
+                end
+                task.wait(0.1)
+            end
+        end)
     end,
 })
 
@@ -1735,21 +1767,7 @@ EndlessSurvivalTab:Toggle({
             while autoRepairEnabled do
                 local nearest = getNearestRepairPart()
                 if nearest then
-                    local char = Players.LocalPlayer.Character
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local dist = (root.Position - nearest.part.Position).Magnitude
-                        if dist <= (nearest.prompt.MaxActivationDistance or 10) + 2 then
-                            pcall(fireproximityprompt, nearest.prompt)
-                        else
-                            local tween = TweenService:Create(root, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {
-                                CFrame = CFrame.new(nearest.part.Position + Vector3.new(0, 3, 0))
-                            })
-                            tween:Play()
-                            tween.Completed:Wait()
-                            pcall(fireproximityprompt, nearest.prompt)
-                        end
-                    end
+                    pcall(fireproximityprompt, nearest.prompt)
                 end
                 task.wait(1)
             end
